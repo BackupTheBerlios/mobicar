@@ -38,6 +38,7 @@ uint32_t sourceIdentifier;
 /* Audio buffer definitions here */
 uint32_t lastOffset;
 uint8_t audioOffsetBuffer[10000]; // 10kB
+uint8_t audioSendBuffer[10000]; // 10kB
 
 
 
@@ -163,8 +164,12 @@ void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
   /* Berechnung der Offsets */
   uint32_t currOffset = 0;
   
-  //uint32_t lastOffset;
-  //uint8_t audioOffsetBuffer[10000]; // 10kB
+    
+  /* PRINT THE WHOLE INCOMING PACKET .. DEBUG ONLY
+  for(unsigned u=0;u<length;u++)
+    printf("%02X ",inBuffer[u]);
+  printf("\n\n");
+  */
   
   for(i=0;i<length;i++) {
   
@@ -180,17 +185,36 @@ void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
     //if((next4Bytes&0xFFE00000)==0xFFE00000) { // THIS SHIT AIN'T GONNA WORK .. DUNNO WHY .. MPEG BITLOOSE PROBLEMS ?!
     if(next4Bytes==0XFFFCA400) {
       
-      printf("First %02X, Second %02X, Third %02X, Fourth %02X\n",firstByte, secondByte, thirdByte, fourthByte);
-      if(myDEBUG) printf("Found mpeg audio header .. Length: %u\n",length);     
-
       currOffset = i-3;
-      /* well we know the difference (=framesize) 'cause this doesn't vary .. if it does we have a corrupt packet (maybe ?!) */
-      printf("last offset was %u - offset now is %u - difference is %u\n",lastOffset,currOffset, currOffset+lastOffset);
+      
+      if(myDEBUG) {
+        printf("Found mpeg audio header .. Length: %u\n",length);   
+        printf("First %02X, Second %02X, Third %02X, Fourth %02X\n",firstByte, secondByte, thirdByte, fourthByte);    
+        /* well we know the difference (=framesize) 'cause this doesn't vary .. if it does we have a corrupt packet (maybe ?!) */
+        printf("last offset was %u - offset now is %u - difference is %u\n",lastOffset,currOffset, currOffset+lastOffset);
+      }
+      
+      uint32_t audioLength = currOffset + lastOffset;
+      
+      memcpy(audioSendBuffer,audioOffsetBuffer, lastOffset);  // lets copy the last offset into the audioBuffer
+      memcpy(audioSendBuffer+lastOffset,inBuffer,currOffset); // lets copy the offset from the actual frame into the audioBuffer 
+      /* NOW WE SHOULD HAVE A COMPLETE AUDIO FRAME IN THE BUFFER */
+      for(unsigned a=0;a<audioLength;a++) 
+        printf("%02X ",audioSendBuffer[a]);
+      printf("\n\n");
+      
+      /* ATTENTION ... THIS HACK IS DIRTY 'CAUSE WE EXPECT ONLY ONE COMPLETE FRAME INTO THIS PACKET ... */
+      memcpy(audioOffsetBuffer,inBuffer+currOffset,length-currOffset); // copy the actual "beginning" of frame into buffer
+      
+      
       lastOffset =  length-(i-3); // there is a new audio header at this position so the last offset was from zero up to here 
 
     }
-    if((i+1)==length)
-     printf("LENGTH WAS: %u \n\n", length);
+    
+    if(myDEBUG) {
+      if((i+1)==length)
+        printf("LENGTH WAS: %u \n\n", length);
+    }
     
   }
 
