@@ -18,6 +18,10 @@
 ******************************************************/
 
 #include <../server/basics.c>
+#include "../server/CommunicatorXP.cpp"
+
+// USKA 05.07.2005
+
 
 
 typedef unsigned char uint8_t;
@@ -27,6 +31,7 @@ typedef unsigned short uint16_t;
 /* the maximum rtp packet size (UDP_SIZE(1490) MINUS HEADERS(42)...*/
 #define PACKET_MAX_SIZE 1448
 #define myDEBUG 0
+
 
 /* some var definitions here */
 bool haveComputedSeqNumber = 0;
@@ -39,6 +44,9 @@ uint32_t sourceIdentifier;
 uint32_t lastOffset;
 uint8_t audioOffsetBuffer[10000]; // 10kB
 uint8_t audioSendBuffer[10000]; // 10kB
+
+bool initedSocket = 0;
+
 
 
 
@@ -62,8 +70,7 @@ uint32_t SSID() {
 
 
 
-void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
-
+void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, CommunicatorXP *test) {
 
   /* First we have to define the vars for start_sequence_code checking routine */
   uint8_t firstByte;
@@ -83,7 +90,7 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
    * PICTURE_START_CODE               0x00000100
    * SEQUENCE_END_CODE                0x000001B7
    */
-
+   
   for(i=0;i<length;i++) {
   
     if(i>=3) {
@@ -94,17 +101,22 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
       fourthByte = inBuffer[i];
     }
     
-    if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB3)
-      if(myDEBUG) printf("Video Sequence Header Start Code\n");
+    if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB3) {
+      if(myDEBUG) 
+        printf("Video Sequence Header Start Code\n");
       /* noting really important to get here ... */
+    }
       
-    else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB8)
-      if(myDEBUG) printf("Group Start Code\n");
+    else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB8) {
+      if(myDEBUG) 
+        printf("Group Start Code\n");
       /* noting really important to get here, too ... */
+    }
       
     else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0x00) {
       /* lets extract the temporal reference and the picture-coding type out of the picture header ... */
-      if(myDEBUG) printf("Picture Start Code\n");
+      if(myDEBUG) 
+        printf("Picture Start Code\n");
       
       next4Bytes = (inBuffer[i+1]<<24) + (inBuffer[i+2]<<16) + (inBuffer[i+3]<<8) + (inBuffer[i+4]);
       uint16_t temporal_reference = (next4Bytes&0xFFC00000)>>(32-10);
@@ -112,12 +124,14 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
       if(myDEBUG) printf("Temporal reference: %d, picture_coding_type: %d\n",temporal_reference, picture_coding_type);
     }
       
-    else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB7)
-      if(myDEBUG) printf("Sequence End Code\n");
+    else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB7) {
+      if(myDEBUG) 
+        printf("Sequence End Code\n");
+    }
       /* this never gonna happen .. dunno */
       
     else if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01) {
-      ; //printf("Slice ?! Has Number: %02X\n",fourthByte);
+      //printf("Slice ?! Has Number: %02X\n",fourthByte);
       /* found a slice ... we have to encapsulate it, so first we have to get its length */
       sliceLength = i - lastSeen;
       sliceLengthSum = sliceLengthSum + sliceLength;
@@ -128,6 +142,8 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
         printf("%02X ", inBuffer[i+j-3-sliceLength]);
       printf("\n\n");
       */
+      test->senddata(inBuffer+i-3-sliceLength,sliceLength);
+      //senda(inBuffer+i-3-sliceLength,sliceLength);
       //printf("I is : %u and whole length is: %u \n",i, length);
       //doVideoRTPFrame(inBuffer[i-3-sliceLength], sliceLength, temporalreference, picture_coding_type, timestamp);
       lastSeen = i;
@@ -145,7 +161,7 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
 }
 
 
-void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
+void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, CommunicatorXP *test) {
 
   /* INFO AN MICH SELBST: Audio Frames haben immer die gleiche Größe (sollten sie haben).
    * Ein Paket beginnt nie mit einem Audio-Frame! Deshalb muss man das Offset des letzten Paketes
@@ -199,9 +215,11 @@ void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp) {
       memcpy(audioSendBuffer,audioOffsetBuffer, lastOffset);  // lets copy the last offset into the audioBuffer
       memcpy(audioSendBuffer+lastOffset,inBuffer,currOffset); // lets copy the offset from the actual frame into the audioBuffer 
       /* NOW WE SHOULD HAVE A COMPLETE AUDIO FRAME IN THE BUFFER */
-      for(unsigned a=0;a<audioLength;a++) 
-        printf("%02X ",audioSendBuffer[a]);
-      printf("\n\n");
+      //printf("TRYING TO SEND ..\n");
+      //test->senddata(audioSendBuffer,audioLength);
+      //for(unsigned a=0;a<audioLength;a++) 
+      //  printf("%02X ",audioSendBuffer[a]);
+      //printf("\n\n");
       
       /* ATTENTION ... THIS HACK IS DIRTY 'CAUSE WE EXPECT ONLY ONE COMPLETE FRAME INTO THIS PACKET ... */
       memcpy(audioOffsetBuffer,inBuffer+currOffset,length-currOffset); // copy the actual "beginning" of frame into buffer
