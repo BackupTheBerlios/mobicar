@@ -1,6 +1,6 @@
 // rtspserver.cpp : Definiert den Einstiegspunkt für die Konsolenanwendung.
 //
-//#include "stdafx.h"
+#include "stdafx.h"
 #include "rtspserver.h"
 
 RtspServer::RtspServer() {
@@ -9,7 +9,10 @@ RtspServer::RtspServer() {
 	filename="test.mpg";
 	streamcount='b';
 	allowedCommandNames = "OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE"; // Allowed commands on this Server
-	setRtspPort(554);
+	setLocalIP("192.168.0.2");
+	setRtspPort(554);			// if not set uses 554
+	setRTPAudioPort(6010);		// if not set uses 5010 rtcp always +1
+	setRTPVideoPort(6020);		// if not set uses 5020 rtcp always +1
 	setStreamOrigin("test.mpg");
 	setSessionDescription("Session streamed by Video@Home::Communication-Team");
 	initSocket();
@@ -31,6 +34,17 @@ void RtspServer::setSessionDescription(char* sd) {
 	sessionDescription = sd;
 }
 
+void RtspServer::setLocalIP(char* ip) {
+	localIP = ip;
+}
+
+void RtspServer::setRTPAudioPort(unsigned short p) {
+	rtpAudioPort = p;
+}
+
+void RtspServer::setRTPVideoPort(unsigned short p) {
+	rtpVideoPort = p;
+}
 
 char* RtspServer::strDup(char const* str) {
   if (str == NULL) return NULL;
@@ -53,7 +67,7 @@ char* RtspServer::strDupSize(char const* str) {
 
 char* RtspServer::generateSDPDescription() {
   //  ourIPAddress.s_addr = ourSourceAddressForMulticast(envir());
-  char* const ourIPAddressStr = "192.168.0.2";//strDup(inet_ntoa(tcpserver.sin_addr));
+  char* const ourIPAddressStr = localIP;//strDup(inet_ntoa(tcpserver.sin_addr));
   unsigned ourIPAddressStrSize = strlen(ourIPAddressStr);
 
   char* sourceFilterLine;
@@ -69,25 +83,25 @@ char* RtspServer::generateSDPDescription() {
 
   rangeLine = strDup("a=range:npt=0-\r\n");
 
-  char* streams;
+  char streams[1000];
   switch(streamcount) { // DYNAMISCH !!!!!!!!!!!!!!!!!!!1
-	  case 'a': 
-			   streams = "m=audio 5010 RTP/AVP 14\r\n"
-				         "c=IN IP4 127.0.0.1/7\r\n"
-						 "a=control:track1\r\n";
+	  case 'a':
+			    sprintf(streams, "m=audio %s RTP/AVP 14\r\n"
+				         "c=IN IP4 %s/7\r\n"
+						 "a=control:track1\r\n",rtpAudioPort,localIP);
 		       break;
 	  case 'v':
-			   streams = "m=video 5020 RTP/AVP 32\r\n"
-						 "c=IN IP4 127.0.0.1/7\r\n"
-						 "a=control:track2\r\n";
+			    sprintf(streams,"m=video %s RTP/AVP 32\r\n"
+						 "c=IN IP4 %s/7\r\n"
+						 "a=control:track2\r\n",rtpVideoPort,localIP);
 	  		   break;
 	  case 'b':
-			   streams = "m=audio 5010 RTP/AVP 14\r\n"
-				         "c=IN IP4 127.0.0.1/7\r\n"
+			   sprintf(streams,"m=audio %s RTP/AVP 14\r\n"
+				         "c=IN IP4 %s/7\r\n"
 						 "a=control:track1\r\n"
-						 "m=video 5020 RTP/AVP 32\r\n"
-						 "c=IN IP4 127.0.0.1/7\r\n"
-						 "a=control:track2\r\n";
+						 "m=video %s RTP/AVP 32\r\n"
+						 "c=IN IP4 %s/7\r\n"
+						 "a=control:track2\r\n",rtpAudioPort,localIP,rtpVideoPort,localIP);
 	  		   break;
   }
 
@@ -130,13 +144,15 @@ char* RtspServer::generate_RTSPURL() {
   char* urlBuffer = new char[100 + sessionNameLength];
   char* resultURL;
   
+  if (rtspPort == NULL) rtspPort = 554;
+
   if (rtspPort == 554 /* the default port number */) {
-    sprintf(urlBuffer, "rtsp://%s/%s", "192.168.0.2",		// fiXX
+    sprintf(urlBuffer, "rtsp://%s/%s", localIP,		// fiXX
 	    sessionName);
   } else {
 
     sprintf(urlBuffer, "rtsp://%s:%hu/%s",
-		"192.168.0.2", rtspPort,							// fiXX
+		localIP, rtspPort,							// fiXX
 	    sessionName);
   }
 
@@ -448,8 +464,8 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
 	       "Transport: RTP/AVP;unicast;destination=%s;client_port=%d-%d;server_port=%d-%d\r\n"
 	       "Session: %d\r\n\r\n",
 	       cseq,
-	       dateHeader(),
-	       "192.168.0.2", 5010, 5011, 5020, 5021, // fiXX by SkyRaVeR gotta by dynamicaly
+	       dateHeader(), // fixx0rn in destination!
+	       remoteIP, rtpAudioPort, rtpAudioPort+1, rtpVideoPort, rtpVideoPort+1, // fiXX by SkyRaVeR gotta by dynamicaly
 	       "1234567890");//fiXX
       break;
     }
@@ -461,9 +477,9 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
 	       "Transport: %s;unicast;destination=%s;client_port=%d;server_port=%d\r\n"
 	       "Session: %d\r\n\r\n",
 	       cseq,
-	       dateHeader(),
-	       streamingModeString, "192.128.0.2", ntohs(rtpPort), ntohs(rtcpPort),
-	       "192.168.0.2");
+	       dateHeader(), //fiXX
+	       streamingModeString, localIP, ntohs(rtpPort), ntohs(rtcpPort),
+	       remoteIP); // something gotta be fixxed here
       delete[] streamingModeString;
       break;
     }
@@ -696,7 +712,7 @@ bool RtspServer::initSocket() {
 	
 	tcpserver.sin_family=AF_INET;
 	tcpserver.sin_port = htons(rtspPort); 
-	tcpserver.sin_addr.s_addr = INADDR_ANY;
+	tcpserver.sin_addr.S_un.S_addr=inet_addr(localIP); //INADDR_ANY;
 
     if (bind(sock, (struct sockaddr *)&tcpserver, sizeof(tcpserver))==-1) {
       fprintf(stderr, "[-] Error: bind\n");
@@ -712,10 +728,13 @@ void RtspServer::tcplisten() {
     }
 
     size=sizeof(remote_addr);
+	printf("Listening on: %s \n",inet_ntoa(tcpserver.sin_addr));
 	
 	remote_s = accept(sock, (struct sockaddr *)&remote_addr, &size); // accept incomming connections...
 
-	printf("\nincoming connection from %s\n",inet_ntoa(remote_addr.sin_addr));
+	remoteIP = inet_ntoa(remote_addr.sin_addr);
+	printf("\nincoming connection from %s\n",remoteIP);
+	
 
 	while (1) {  
 	

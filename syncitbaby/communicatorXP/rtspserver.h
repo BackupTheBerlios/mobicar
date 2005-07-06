@@ -1,5 +1,5 @@
 #if defined(__WIN32__) || defined(_WIN32)
-//#include "stdafx.h"
+#include "stdafx.h"
 #include "winsock.h"
 #pragma comment(lib,"ws2_32")
 #else // linux momentan
@@ -29,6 +29,10 @@ public:
 	void setRtspPort(unsigned short p);
 	void setSessionDescription(char* sd);
 	void setStreamOrigin(char* file);
+	void setRTPAudioPort(unsigned short p);
+	void setRTPVideoPort(unsigned short p);
+	void setLocalIP(char* ip);
+
 	void tcplisten();
 
 private:
@@ -37,7 +41,12 @@ private:
 	struct sockaddr_in tcpserver;
     struct sockaddr_in remote_addr;
     int size;
-   
+
+	unsigned short rtpAudioPort;
+	unsigned short rtpVideoPort;
+	char* localIP;
+	char* remoteIP;
+
     #if defined(__WIN32__) || defined(_WIN32)
 	SOCKET sock;
 	#else
