@@ -40,7 +40,8 @@ bool haveComputedVideoSeqNumber = 0;
 bool haveComputedAudioSeqNumber = 0;
 uint16_t vidSeqNumber;
 uint16_t audSeqNumber;
-bool haveComputedSSID = 0;
+bool haveComputedVideoSSID = 0;
+bool haveComputedAudioSSID = 0;
 uint32_t sourceIdentifier;
 
 
@@ -69,24 +70,40 @@ uint16_t audioSequenceNumber() {
     audSeqNumber = (u_int16_t)our_random();
   
   audSeqNumber++;
+  haveComputedAudioSeqNumber = 1;
   return audSeqNumber;
 }
 
 
-uint32_t SSID() {
+uint32_t videoSSID() {
   /* our random function to calculate the synchronisation source identifier (SSID) ... always the same for one medium (VIDEO) */
-  if(!haveComputedSSID)
+  if(!haveComputedVideoSSID)
     sourceIdentifier = our_random32();
 
-  haveComputedSSID = 1;
+  haveComputedVideoSSID = 1;
+  return sourceIdentifier;
+}
+
+uint32_t audioSSID() {
+  /* our random function to calculate the synchronisation source identifier (SSID) ... always the same for one medium (VIDEO) */
+  if(!haveComputedAudioSSID)
+    sourceIdentifier = our_random32();
+
+  haveComputedAudioSSID = 1;
   return sourceIdentifier;
 }
 
 
 
-void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPicture, uint16_t temp_ref, uint8_t picture_type, uint32_t inRTPTimestamp, CommunicatorXP *test) {
+void doAudioVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPicture, uint16_t temp_ref, uint8_t picture_type, uint32_t inRTPTimestamp, uint8_t mediaType, CommunicatorXP *test) {
  if(FRAMEDEBUG)
   printf("Length: %u - isLastPicture: %u - temp_ref: %u - picture-type: %u - timestamp: %u\n",inSliceLength, isLastPicture, temp_ref, picture_type, inRTPTimestamp);
+  
+  /* we have something new here .. the mediatype var ...
+   * 0x01 => MPEG2 Video
+   * 0x02 => MPEG2 Audio
+   * ... nothing else for now ..
+   */
 
   bool fitsInOnePacket = 0;
   uint32_t numOfPackets; // when frames has to be fragmentated into X rtppackets we have to know how many ...
@@ -94,6 +111,7 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
   uint8_t *startCode;
 
   if(inSliceLength <= PACKET_MAX_SIZE) {
+    //printf("Slice Length: %u\n",inSliceLength);
     fitsInOnePacket = 1; // we know it fits into one rtp packet ...
     numOfPackets = 1;
   }
@@ -108,23 +126,34 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
       numOfPackets = roundedAmount; // crazy, it exactly fits into X Frames 
   }
   
-  printf("SIZE IS: %u - Number of Packets is: %u\n",inSliceLength, numOfPackets);
+  //printf("SIZE IS: %u - Number of Packets is: %u\n",inSliceLength, numOfPackets);
 
    /* BEGIN TO STUFF THE RTPHEADER */
   uint8_t rtpHeader[16];
   rtpHeader[0] = 0x80; // RTP Version, Padding, Extension, Contrib. Count
   
-  if(isLastPicture)
-    rtpHeader[1] = 0xA0; // Set the "last picture of I/B/P-Frame" marker to TRUE && set Payload Type MPEG2 (32)
-  else 
-    rtpHeader[1] = 0x20; // Set it FALSE && set Payload Type MPEG2 (32)
+  if(mediaType == 0x01) { // it's a video frame ...
+    if(isLastPicture)
+      rtpHeader[1] = 0xA0; // Set the "last picture of I/B/P-Frame" marker to TRUE && set Payload Type MPEG2 (32)
+    else 
+      rtpHeader[1] = 0x20; // Set it FALSE && set Payload Type MPEG2 (32)
+  }
+  else if(mediaType == 0x02) {
+      rtpHeader[1] = 0x0E;
+  }
     
   // the sequence numbers will be computed and set later on ...
   
   enqueue32(rtpHeader,inRTPTimestamp,4);
   //memcpy(rtpHeader+4,&inRTPTimestamp,4); // Let's copy the RTPTimestamp into the RTP-Packet
+  uint32_t fsourceIdentifier;
   
-  uint32_t fsourceIdentifier = SSID();
+  if(mediaType == 0x01) {
+    fsourceIdentifier = videoSSID();
+  }
+  else if(mediaType == 0x02) {
+    fsourceIdentifier = audioSSID();
+  }
   enqueue32(rtpHeader,fsourceIdentifier,8);
   //memcpy(rtpHeader+8,&fsourceIdentifier,4);
   /* END STUFFING RTPHEADER */
@@ -136,6 +165,8 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
   //memcpy(mpegHeader,&temp_ref,2); // set MBZ and Temporal Picture Reference ...
   
  // we are continuing to calculate the infoByte later on ...
+ 
+if(mediaType==0x01) {
   
   uint8_t infoByte2;
   if(picture_type==0x02)
@@ -154,7 +185,7 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
   //printf("HEADER COMPUTED SUCCESSFULLY \n");
     
   /* lets split the rtp-packet now ... */
-    uint8_t *videoRTPFrame;
+    uint8_t videoRTPFrame[1500]; // malloc makes fucking fun ... we set it hardcoded.. dunno 
     uint32_t bufferSize;
     uint32_t offset;
     
@@ -175,14 +206,13 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
         bufferSize = inSliceLength - ((sameFramePacketCounter-1) * PACKET_MAX_SIZE);
       }
       
-      printf("Allocated Buffersize is: %u\n",bufferSize);
-	
-      videoRTPFrame = (uint8_t*)malloc(bufferSize);
       
+      //videoRTPFrame = (uint8_t*)malloc((int)bufferSize);
+      if(videoRTPFrame == 0)
+        printf("Could not allocate \n");
       uint16_t fsequenceNumber = videoSequenceNumber(); // Let's get the Sequence Number
       enqueue16(rtpHeader,fsequenceNumber,2);
       //memcpy(rtpHeader+2,&fsequenceNumber,2);
-      
       memcpy(videoRTPFrame,rtpHeader,12);
       
       
@@ -214,11 +244,9 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
         printf("%02X", mpegHeader[j]);
 	      printf("\n\n");
     }
-      
+
       memcpy(videoRTPFrame+12, mpegHeader, 4);
-      
       memcpy(videoRTPFrame+16,inSlice+offset,bufferSize);
-      
       test->senddata(videoRTPFrame,bufferSize);
       //videoUDPSend(videoRTPFrame,bufferSize);
       
@@ -227,7 +255,22 @@ void doVideoRTPFrame(uint8_t *inSlice, uint32_t inSliceLength, bool isLastPictur
   
   
   }
+  //free((void *)videoRTPFrame);
+}
+else if(mediaType == 0x02) { //isAudio !
+    
+  uint8_t audioRTPFrame[1500]; // malloc makes fucking fun ... we set it hardcoded.. dunno 
+  uint16_t fsequenceNumber = audioSequenceNumber(); // Let's get the Sequence Number
+  enqueue16(rtpHeader,fsequenceNumber,2);
+  memcpy(audioRTPFrame,rtpHeader,12);
+  enqueue32(audioRTPFrame, 0x00000000, 12);
+  memcpy(audioRTPFrame+16,inSlice, inSliceLength);
   
+  test->senddata(audioRTPFrame, inSliceLength+16);
+
+}
+
+
 }
 
 
@@ -249,6 +292,9 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
   uint8_t picture_coding_type;
   
   bool sawSomeStartCode = 0;
+  bool sawCode2 = 0;
+  
+  uint32_t headerLength = 0;
   
   /* the start codes are the following ... 
    * VIDEO_SEQUENCE_HEADER_START_CODE 0x000001B3
@@ -337,28 +383,28 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
        if(RAW_UDP_SEND)
          test->senddata(inBuffer,sliceLength-3);
        if(RTP_SEND)
-         doVideoRTPFrame(inBuffer, sliceLength-3, 0, temporal_reference,  picture_coding_type, timeStamp, test);
-	 printf("\n\n");
-	 printf("sawsomecode and send the following: \n");
-	 for(int u=0;u<(sliceLength-3);u++)
-	   printf("%02X ",inBuffer[u]);
+         //doVideoRTPFrame(inBuffer, sliceLength-3, 0, temporal_reference,  picture_coding_type, timeStamp, test);
 	   //startCode = (uint8_t *)malloc(sliceLength-3);
 	   //memcpy(startCode,
+	   headerLength = sliceLength - 3;
 	   	 
        sawSomeStartCode = 0;
+       sawCode2 = 1;
       }
       else {
-      printf("fourth byte is %02X\n",inBuffer[i]);
         if(RAW_UDP_SEND)
           test->senddata(inBuffer+i-3-sliceLength,sliceLength);
 	  
-	if(RTP_SEND)
-	  doVideoRTPFrame(inBuffer+i-3-sliceLength, sliceLength, 0, temporal_reference,  picture_coding_type, timeStamp, test);
-	
-	printf("\n\n");
-	printf("else send the following: \n");
-	 for(int u=0;u<sliceLength;u++)
-	   printf("%02X ",inBuffer[u+i-3-sliceLength]);
+	if(RTP_SEND) {
+	  if(sawCode2) {
+	    doAudioVideoRTPFrame(inBuffer+i-3-sliceLength-headerLength, sliceLength+headerLength, 0, temporal_reference,  picture_coding_type, timeStamp, 0x01, test);
+	    sawCode2 = 0;
+	  }
+	  else {
+	    doAudioVideoRTPFrame(inBuffer+i-3-sliceLength, sliceLength, 0, temporal_reference,  picture_coding_type, timeStamp, 0x01, test);
+	  }
+	}
+
       }
 
         
@@ -377,7 +423,7 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
     test->senddata(inBuffer+sliceLengthSum-3,length - sliceLengthSum);
   
   if(RTP_SEND)
-    doVideoRTPFrame(inBuffer+sliceLengthSum-3, length - sliceLengthSum, 1, temporal_reference,  picture_coding_type, timeStamp, test);
+    doAudioVideoRTPFrame(inBuffer+sliceLengthSum-3, length - sliceLengthSum, 1, temporal_reference,  picture_coding_type, timeStamp, 0x01, test);
   /* isLastPicture = 1 ;) */
   
 }
@@ -439,6 +485,7 @@ void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, Co
       /* NOW WE SHOULD HAVE A COMPLETE AUDIO FRAME IN THE BUFFER */
       //printf("TRYING TO SEND ..\n");
       //test->senddata(audioSendBuffer,audioLength);
+      doAudioVideoRTPFrame(audioSendBuffer, audioLength, 0, 0, 0, timeStamp, 0x02, test);
       //for(unsigned a=0;a<audioLength;a++) 
       //  printf("%02X ",audioSendBuffer[a]);
       //printf("\n\n");
