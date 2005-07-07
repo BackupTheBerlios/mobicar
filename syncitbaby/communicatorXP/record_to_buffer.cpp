@@ -2,7 +2,8 @@
 #include "../server/PESParser.cpp"
 //#include "../server/CommunicatorXP.h"
 
-	      
+  uint32_t    rtpBaseTime = 0;
+  struct timeval rtpBaseTimeRealTime;	      
 	      
 dvb::dvb() {
   lastAudioPCR = 0;
@@ -35,6 +36,7 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
               audio[PES_PACKET_LENGTH];
 
   bool        havePacket = false;
+  bool        wassendbefore = false;
   struct timeval timeOfRTPTimestamp;
   
   PESPacket   *PESPacketParser = new PESPacket();
@@ -43,12 +45,24 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
    
 	CommunicatorXP* test = new CommunicatorXP();
 	test->setDestination("127.0.0.1");
-	test->setPort(3333);
+	test->setPort(5020);
+	
+	CommunicatorXP* test3 = new CommunicatorXP();
+	test3->setDestination("127.0.0.1");
+	test3->setPort(5021);
+	
+	CommunicatorXP* test2 = new CommunicatorXP();
+	test2->setDestination("127.0.0.1");
+	test2->setPort(5010);
+	
+	CommunicatorXP* test4 = new CommunicatorXP();
+	test4->setDestination("127.0.0.1");
+	test4->setPort(5011);
   
 
   try {
-    station = new DvbStation("Das Erste:198500:I0B7C34D12M16T8G4Y0:T:27500:4369:4370:4372:0:128:0:0:0");
-    //station = new DvbStation("SAT.1:658000:I0B8C23D23M16T8G4Y0:T:27500:385:386;392:391:0:16408:0:0:0");
+    //station = new DvbStation("Das Erste:198500:I0B7C34D12M16T8G4Y0:T:27500:4369:4370:4372:0:128:0:0:0");
+    station = new DvbStation("SAT.1:658000:I0B8C23D23M16T8G4Y0:T:27500:385:386;392:391:0:16408:0:0:0");
   } catch(DvbStationException e) {
     e.Report();
     exit(1337);
@@ -162,9 +176,16 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
 	        gettimeofday(&timeOfRTPTimestamp,NULL);
                 unsigned actualPTS = PESPacketParser->getPTS();
 		
+		if (!wassendbefore) {
+		  rtpBaseTime = actualPTS;
+		  gettimeofday(&rtpBaseTimeRealTime, NULL);
+		  wassendbefore = 1;
+		}
+		
 	        /* hack by uska */
 	        length = PESPacketParser->getData(&video[0]); // Gets the PES data
-		parseVideoPacket(video, length, actualPTS, timeOfRTPTimestamp, test);
+		parseVideoPacket(video, length, actualPTS, timeOfRTPTimestamp, test, test3);
+		usleep(1);
 		//printf("PES HEADER LENGTH: %u\t",PESPacketParser->get_pes_header_data_length());
 		//for(int i=0;i<length;i++)
 		//  printf("%02X ",video[i]);
@@ -179,12 +200,12 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
          
           if( !this->m_die ) {
 	  
-	                      while(bufferhasLock) {
+	                      //while(bufferhasLock) {
 			        //printf("Buffer has lock in RECORD_TO_BUFFER in video\n");
-			        usleep(1);
-		              }
-			     // if(counter>100)
-			     //   error = bufferClass::write(mBuffer, video, length, 0);
+			     //   usleep(1);
+		              //}
+			     //if(counter<1000)
+			     //bufferClass::write(mBuffer, video, length, 0);
             //if( error != -1 ) {
             //  cout << "[dvb] output buffer is full, discarding packets" << endl;
             //}
@@ -237,19 +258,19 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
           if( PESPacketParser->get_pes_packet_length() < 1) {
             PESPacketParser->set_pes_packet_length();
           }
-
+          unsigned actualPTS2 = PESPacketParser->getPTS();
 	        /* hack by uska */
           length = PESPacketParser->getData(&audio[0]); // Gets the PES data
-	  parseAudioPacket(audio, length, 0, test);
+	  parseAudioPacket(audio, length, actualPTS2, test2, test4);
 	        //length = PESPacketParser->getData(&audio[0]); // Gets the ES data
           if( !this->m_die ) {
 	  
-	                     while(bufferhasLock) {
+	                     //while(bufferhasLock) {
 			      //printf("Buffer has lock in RECORD_TO_BUFFER in audio!\n");
-			      usleep(1);
-			     }
-			     //if(counter>100)
-			      ; //error = bufferClass::write(mBuffer, audio, length, 0);
+			     // usleep(1);
+			     //}
+			     //if(counter<1000)
+			     //bufferClass::write(mBuffer, audio, length, 0);
             //if( error != -1 ) {
             //  cout << "[dvb] output buffer is full, discarding packets..." << endl;
             //}

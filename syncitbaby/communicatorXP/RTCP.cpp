@@ -35,6 +35,34 @@ typedef unsigned short uint16_t;
  * - offset is the position of the buffer where first byte should be written 
  */
 
+ /**
+ * this function is for computing the time difference between timeval x and y
+ * the result is stored in result
+ */
+int timeval_subtract (struct timeval *result, struct timeval *x, struct timeval *y) {
+  /* Perform the carry for the later subtraction by updating y. */
+  if (x->tv_usec < y->tv_usec) {
+    int nsec = (y->tv_usec - x->tv_usec) / 1000000 + 1;
+    y->tv_usec -= 1000000 * nsec;
+    y->tv_sec += nsec;
+  }
+ 
+  if (x->tv_usec - y->tv_usec > 1000000) {
+    int nsec = (x->tv_usec - y->tv_usec) / 1000000;
+    y->tv_usec += 1000000 * nsec;
+    y->tv_sec -= nsec;
+  }
+ 
+ /* Compute the time remaining to wait.
+ tv_usec is certainly positive. */
+  result->tv_sec = x->tv_sec - y->tv_sec;
+  result->tv_usec = x->tv_usec - y->tv_usec;
+ 
+ /* Return 1 if result is negative. */
+  return x->tv_sec < y->tv_sec;
+}
+ 
+ 
 
 void enqueue8(uint8_t *buffer, uint8_t data, uint32_t offset) {
   buffer[offset] = data;
@@ -62,6 +90,9 @@ void enqueue32(uint8_t *buffer, uint32_t data, uint32_t offset) {
 
 void buildSRPacket(uint32_t SSRC, struct timeval lastRTPTime, uint32_t lastRTPStamp, struct timeval lasttimeRTPStamp, uint32_t packetCounter, uint32_t octetCounter, CommunicatorXP *test) {
 
+  extern uint32_t    rtpBaseTime;
+  extern struct timeval rtpBaseTimeRealTime;
+  
   uint32_t i;
   uint8_t firstPart[28]; // the RTCP Sender Report consists of two parts .. this is the first .. always static length
   
@@ -77,6 +108,7 @@ void buildSRPacket(uint32_t SSRC, struct timeval lastRTPTime, uint32_t lastRTPSt
   
   struct timeval timeNow;
   gettimeofday(&timeNow, NULL);
+  struct timeval difference;
 
 
   enqueue8(firstPart, 0x80, 0); // Version, Padding, Reception report count
@@ -92,11 +124,19 @@ void buildSRPacket(uint32_t SSRC, struct timeval lastRTPTime, uint32_t lastRTPSt
   double fractionalPart = (timeNow.tv_usec/15625.0)*0x04000000; // 2^32/10^6
   enqueue32(firstPart, ((unsigned)(fractionalPart+0.5)), 12);
   
+  timeval_subtract(&difference, &timeNow, &rtpBaseTimeRealTime);
+  
+  double diff = ((double)difference.tv_sec + (double)difference.tv_usec/1000000 );
+
+
+  unsigned fRTPTimestamp = rtpBaseTime + (diff * 90000);
+  
+  //printf("Difference is: %i,%i - timestamp is: %u\n",difference.tv_sec, difference.tv_usec, fRTPTimestamp);
   /* TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO */
-  printf("LAST TIME WAS: %u,%u\n",lasttimeRTPStamp.tv_sec, lasttimeRTPStamp.tv_usec);
-  printf("NOW TIME IS  : %u,%u\n",timeNow.tv_sec, timeNow.tv_usec);
+  //printf("LAST TIME WAS: %u,%u\n",lasttimeRTPStamp.tv_sec, lasttimeRTPStamp.tv_usec);
+  //printf("NOW TIME IS  : %u,%u\n",timeNow.tv_sec, timeNow.tv_usec);
   // have to compute the real timestamp !!!
-  unsigned fRTPTimestamp = lastRTPStamp;
+  //unsigned fRTPTimestamp = lastRTPStamp;
   
   enqueue32(firstPart, fRTPTimestamp, 16);
   

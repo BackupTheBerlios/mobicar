@@ -43,12 +43,14 @@ uint16_t audSeqNumber;
 bool haveComputedVideoSSID = 0;
 bool haveComputedAudioSSID = 0;
 uint32_t sourceIdentifier;
-
+uint32_t sourceIdentifier2;
 
 /* Audio buffer definitions here */
 uint32_t lastOffset;
 uint8_t audioOffsetBuffer[10000]; // 10kB
 uint8_t audioSendBuffer[10000]; // 10kB
+
+  uint32_t testit;
 
 
 /* FUNCTIONS COME HERE */
@@ -87,10 +89,10 @@ uint32_t videoSSID() {
 uint32_t audioSSID() {
   /* our random function to calculate the synchronisation source identifier (SSID) ... always the same for one medium (VIDEO) */
   if(!haveComputedAudioSSID)
-    sourceIdentifier = our_random32();
+    sourceIdentifier2 = our_random32();
 
   haveComputedAudioSSID = 1;
-  return sourceIdentifier;
+  return sourceIdentifier2;
 }
 
 
@@ -202,8 +204,8 @@ if(mediaType==0x01) {
 	bufferSize = PACKET_MAX_SIZE;
       }
       else if((sameFramePacketCounter)==numOfPackets) { // last packet
-        offset = (sameFramePacketCounter-1) * PACKET_MAX_SIZE;
-        bufferSize = inSliceLength - ((sameFramePacketCounter-1) * PACKET_MAX_SIZE);
+        offset = ((sameFramePacketCounter-1) * PACKET_MAX_SIZE) - 16;
+        bufferSize = inSliceLength +16 - ((sameFramePacketCounter-1) * (PACKET_MAX_SIZE - 16));
       }
       
       
@@ -274,7 +276,7 @@ else if(mediaType == 0x02) { //isAudio !
 }
 
 
-void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, struct timeval timeOftimeStamp, CommunicatorXP *test) {
+void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, struct timeval timeOftimeStamp, CommunicatorXP *test, CommunicatorXP *testRTCP) {
 
   /* First we have to define the vars for start_sequence_code checking routine */
   uint8_t firstByte;
@@ -304,7 +306,6 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
    * EXTENSION_START_CODE             0x000001B5
    */
    
-   
   for(i=0;i<length;i++) {
   
     if(i>=3) {
@@ -317,9 +318,10 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
     
     if(firstByte==0x00 && secondByte==0x00 &&thirdByte==0x01 && fourthByte==0xB3) {
       sawSomeStartCode = 1;
-      //struct timeval lala;
-      //gettimeofday(&lala, NULL);
-      //buildSRPacket(0x1234567, lala, timeStamp, timeOftimeStamp, 0x11998822, 0x55111188, test);
+      struct timeval lala;
+      gettimeofday(&lala, NULL);
+      //buildSRPacket(videoSSID(), 0, timeStamp, timeOftimeStamp, uint32_t packetCounter, uint32_t octetCounter, CommunicatorXP *test) {
+      buildSRPacket(videoSSID(), lala, timeStamp, timeOftimeStamp, 0x11998822, 0x55111188, testRTCP);
       if(VIDEODEBUG) 
         printf("Video Sequence Header Start Code\n");
       /* noting really important to get here ... */
@@ -429,7 +431,7 @@ void parseVideoPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, st
 }
 
 
-void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, CommunicatorXP *test) {
+void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, CommunicatorXP *test, CommunicatorXP *testRTCP2) {
 
   /* INFO AN MICH SELBST: Audio Frames haben immer die gleiche Größe (sollten sie haben).
    * Ein Paket beginnt nie mit einem Audio-Frame! Deshalb muss man das Offset des letzten Paketes
@@ -492,7 +494,11 @@ void parseAudioPacket(uint8_t *inBuffer, uint32_t length, uint32_t timeStamp, Co
       
       /* ATTENTION ... THIS HACK IS DIRTY 'CAUSE WE EXPECT ONLY ONE COMPLETE FRAME INTO THIS PACKET ... */
       memcpy(audioOffsetBuffer,inBuffer+currOffset,length-currOffset); // copy the actual "beginning" of frame into buffer
-      
+      struct timeval lala;
+      gettimeofday(&lala, NULL);
+      if((testit%10)==0)
+        buildSRPacket(audioSSID(), lala, timeStamp, lala, 0x11998822, 0x55111188, testRTCP2);
+	testit++;
       
       lastOffset =  length-(i-3); // there is a new audio header at this position so the last offset was from zero up to here 
 
