@@ -1,5 +1,7 @@
 #include "record_to_buffer.h"
 #include "../server/PESParser.cpp"
+//#include "../server/CommunicatorXP.h"
+
 	      
 	      
 dvb::dvb() {
@@ -33,9 +35,16 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
               audio[PES_PACKET_LENGTH];
 
   bool        havePacket = false;
+  struct timeval timeOfRTPTimestamp;
   
   PESPacket   *PESPacketParser = new PESPacket();
   DvbStation  *station;
+  
+   
+	CommunicatorXP* test = new CommunicatorXP();
+	test->setDestination("127.0.0.1");
+	test->setPort(3333);
+  
 
   try {
     station = new DvbStation("Das Erste:198500:I0B7C34D12M16T8G4Y0:T:27500:4369:4370:4372:0:128:0:0:0");
@@ -150,10 +159,12 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
             cout << "\t[dvb] pes_header_data_length " 
               << PESPacketParser->get_pes_header_data_length() << endl;
           #endif
-
+	        gettimeofday(&timeOfRTPTimestamp,NULL);
+                unsigned actualPTS = PESPacketParser->getPTS();
+		
 	        /* hack by uska */
 	        length = PESPacketParser->getData(&video[0]); // Gets the PES data
-		parseVideoPacket(video, length, 0);
+		parseVideoPacket(video, length, actualPTS, timeOfRTPTimestamp, test);
 		//printf("PES HEADER LENGTH: %u\t",PESPacketParser->get_pes_header_data_length());
 		//for(int i=0;i<length;i++)
 		//  printf("%02X ",video[i]);
@@ -172,11 +183,11 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
 			        //printf("Buffer has lock in RECORD_TO_BUFFER in video\n");
 			        usleep(1);
 		              }
-			      if(counter>100)
-			        error = bufferClass::write(mBuffer, video, length, 0);
-            if( error != -1 ) {
-              cout << "[dvb] output buffer is full, discarding packets" << endl;
-            }
+			     // if(counter>100)
+			     //   error = bufferClass::write(mBuffer, video, length, 0);
+            //if( error != -1 ) {
+            //  cout << "[dvb] output buffer is full, discarding packets" << endl;
+            //}
           }
 
           #ifdef DEBUG  
@@ -229,7 +240,7 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
 
 	        /* hack by uska */
           length = PESPacketParser->getData(&audio[0]); // Gets the PES data
-	  parseAudioPacket(audio, length, 0);
+	  parseAudioPacket(audio, length, 0, test);
 	        //length = PESPacketParser->getData(&audio[0]); // Gets the ES data
           if( !this->m_die ) {
 	  
@@ -237,11 +248,11 @@ void dvb::startParser(struct circleBuffer* mBuffer) {
 			      //printf("Buffer has lock in RECORD_TO_BUFFER in audio!\n");
 			      usleep(1);
 			     }
-			     if(counter>100)
+			     //if(counter>100)
 			      ; //error = bufferClass::write(mBuffer, audio, length, 0);
-            if( error != -1 ) {
-              cout << "[dvb] output buffer is full, discarding packets..." << endl;
-            }
+            //if( error != -1 ) {
+            //  cout << "[dvb] output buffer is full, discarding packets..." << endl;
+            //}
           }
 
           audio_pos = 0;

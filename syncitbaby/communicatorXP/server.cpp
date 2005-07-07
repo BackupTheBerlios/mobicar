@@ -61,8 +61,8 @@
 #endif
 
 #define USE_PARSER 1 
-#define USE_GUI 1
-#define USE_COMMUNICATOR 1
+//#define USE_GUI 1
+//#define USE_COMMUNICATOR 1
 //#define USE_REMOTESM 1
 
 #include "server.h"
@@ -79,8 +79,6 @@
 //and the dvb-parser-classes
 #include "record_to_buffer.h"
 
-// USKA 05.07.2005
-#include "CommunicatorXP.h"
 
 // gui
 #ifdef USE_GUI
@@ -181,7 +179,7 @@ int main (int argc, char *argv[]) {
   mBuffy = bufferClass::init();
   //vBuffy = bufferClass::init();
   //aBuffy = bufferClass::init();
-
+	
   pthread_t thread_streamer;
   pthread_t thread_parser;
   pthread_t thread_gui;
