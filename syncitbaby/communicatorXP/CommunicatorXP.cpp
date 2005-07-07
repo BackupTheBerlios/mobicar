@@ -142,3 +142,14 @@ void CommunicatorXP::setDestination(char* host) {
 char* CommunicatorXP::getDestination() {
 	return this->destination;
 }
+
+unsigned short CommunicatorXP::getRTPSequenceNumber(unsigned char* buf){
+	unsigned short sequencenumber=0;
+	// bytes 3&4 represent the sequencenumber
+	sequencenumber = buf[2];
+	sequencenumber = sequencenumber<<8;
+	sequencenumber +=buf[3];
+	
+	return sequencenumber;
+}
+

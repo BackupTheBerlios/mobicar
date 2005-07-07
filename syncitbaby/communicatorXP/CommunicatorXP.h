@@ -38,6 +38,8 @@ public:
 	void setLocalPort(unsigned short port);
 	unsigned short getLocalPort();
 
+	unsigned short getRTPSequenceNumber(unsigned char* buf);
+
 private:
 
 	bool initializedReceiver;
@@ -63,6 +65,5 @@ private:
     struct sockaddr_in udpserver;      
 	unsigned char* recvdata;
 	unsigned int recvlength;
-
 
 };
