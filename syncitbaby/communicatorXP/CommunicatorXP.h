@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #endif
 
+#define RECV_BUFFER_SIZE 1024 // 1kb enough?
+
 
 class CommunicatorXP {
 
@@ -21,25 +23,50 @@ public:
 	CommunicatorXP();
 	~CommunicatorXP();
 	
-	long senddata(unsigned char* data, int length);
+	bool initUDPSender();
+	bool initUDPReceiver();
+
+	long sendData(unsigned char* data, int length);
+	void receiveData();	// its void because uska gets refernce to obj
 	
 	void setPort(unsigned short port);
 	unsigned short getPort();
 	
 	void setDestination(char* host);
 	char* getDestination();
+	
+	void setLocalPort(unsigned short port);
+	unsigned short getLocalPort();
 
 private:
 
+	bool initializedReceiver;
+	bool initializedSender;
+
+	unsigned char* buf2recvdata(char buf[]);
+
+
 	long rc;	// bytes sent
 	int sock;	// socket
-    struct sockaddr_in server; /* server address info */
-    unsigned char* buffer;	   /* just another buffer where data shall be stored */
+    struct sockaddr_in server; /* server address info better its called client,,, but still on the "server" */
+
+	unsigned char* buffer;	   /* just another buffer where data shall be stored */
 	unsigned short port;	   /* port of remote server to send to */
+	unsigned short localport;
+
 	char* destination;		   /* host/ip of destination */
 	
 	#if defined(__WIN32__) || defined(_WIN32)
 	WSADATA wsa; // necessary for win
-	#endif
 	int startWinsock(void);
+	#endif
+
+// ######### Variables for the udpserver on the proxyside
+	int sockudprecv;                 
+    struct sockaddr_in udpserver;      
+
+	unsigned char* recvdata;
+	unsigned int recvlength;
+
+
 };

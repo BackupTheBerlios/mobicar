@@ -15,7 +15,6 @@
 
 #include "time.h"
 
-
 #define RTSP_BUFFER_SIZE 10000 // for incoming requests, and outgoing responses
 #define PARAM_STRING_MAX 100
 
@@ -25,19 +24,22 @@ public:
 	RtspServer();
 	~RtspServer();
 	
-	void startServer();
+	void setLocalIP(char* ip);
+	void setRTPAudioPort(unsigned short p);
+	void setRTPVideoPort(unsigned short p);
 	void setRtspPort(unsigned short p);
 	void setSessionDescription(char* sd);
 	void setStreamOrigin(char* file);
-	void setRTPAudioPort(unsigned short p);
-	void setRTPVideoPort(unsigned short p);
-	void setLocalIP(char* ip);
 
 	void tcplisten();
+	void startServer();
 
 private:
 
+	#if defined(__WIN32__) || defined(_WIN32)
 	WSADATA wsa;
+	#endif
+	
 	struct sockaddr_in tcpserver;
     struct sockaddr_in remote_addr;
     int size;
@@ -49,12 +51,9 @@ private:
 
     #if defined(__WIN32__) || defined(_WIN32)
 	SOCKET sock;
-	#else
-	int sock;
-	#endif
-    #if defined(__WIN32__) || defined(_WIN32)
 	SOCKET remote_s;
 	#else
+	int sock;
 	int remote_s;
 	#endif
 
@@ -66,8 +65,6 @@ private:
 	  RTP_TCP,
 	  RAW_UDP
 	};
-
-
 
 	char const* allowedCommandNames;
 	unsigned char fBuffer[RTSP_BUFFER_SIZE];

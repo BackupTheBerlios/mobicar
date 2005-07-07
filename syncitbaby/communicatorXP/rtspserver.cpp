@@ -2,6 +2,7 @@
 //
 #include "stdafx.h"
 #include "rtspserver.h"
+#include <stdio.h>
 
 RtspServer::RtspServer() {
 	streamservername = "Sky streaming media server ver 0.1alpha";			 // Server-Name & Version :)
@@ -20,6 +21,7 @@ RtspServer::RtspServer() {
 }
 
 RtspServer::~RtspServer() {
+	// close(sock); well - usually cleanup thingies,, but doesnt work well :(
 }
 
 void RtspServer::setRtspPort(unsigned short p) {
@@ -466,7 +468,7 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
 	       cseq,
 	       dateHeader(), // fixx0rn in destination!
 	       remoteIP, rtpAudioPort, rtpAudioPort+1, rtpVideoPort, rtpVideoPort+1, // fiXX by SkyRaVeR gotta by dynamicaly
-	       "1234567890");//fiXX
+	       "1234567890");//fiXX sessionid from random times,,
       break;
     }
     case RAW_UDP: {
@@ -477,9 +479,9 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
 	       "Transport: %s;unicast;destination=%s;client_port=%d;server_port=%d\r\n"
 	       "Session: %d\r\n\r\n",
 	       cseq,
-	       dateHeader(), //fiXX
-	       streamingModeString, localIP, ntohs(rtpPort), ntohs(rtcpPort),
-	       remoteIP); // something gotta be fixxed here
+	       dateHeader(), !?
+	       streamingModeString, remoteIP, ntohs(rtpPort), ntohs(rtcpPort),
+	       "1234567890"); // something gotta be fixxed here
       delete[] streamingModeString;
       break;
     }
