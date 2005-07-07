@@ -79,48 +79,37 @@ bool CommunicatorXP::initUDPReceiver() {
 	return initializedReceiver; // successfully initialized receiver sock
 }
 
-unsigned char* CommunicatorXP::buf2recvdata(char buf[]) {
-	int i=0;
-	unsigned char* tmpbuf=NULL;
-
-	while(i < RECV_BUFFER_SIZE-1) {
-		if (buf[i] == 0xFFFFFFFFFFFFFFCC) break;
-		tmpbuf += buf[i]; // dunno if this fuckin works - dont really think so :( fiXX
-		i++;
-	}
-	return tmpbuf;
-}
-
 void CommunicatorXP::receiveData() {
 
     struct sockaddr_in remote_addr;      /* 2 Adressen      */
     int remote_addr_size = sizeof(remote_addr);   /* fuer recvfrom() */
-    char buf[1024]; 
-
-	//char buf [RECV_BUFFER_SIZE];
+	
+	recvdata = (unsigned char*) malloc(RECV_BUFFER_SIZE); //fixx into sizeofbuffer?
 
 	if(initializedReceiver) {
 
 		printf("[*] Waiting for incoming data... \n");
+		
 		while(1) {
 
-			if (recvfrom(sockudprecv,buf, sizeof(buf), 0,
-	       (struct sockaddr *)&remote_addr, &remote_addr_size) > 0)
-    {
-      printf("Getting Data from %s\n",
-	  inet_ntoa(remote_addr.sin_addr) );
-   //   printf("Data : %s\n", buf);
-	  recvdata = buf2recvdata(buf); // put buffer content into unsigned char ;)
-	
-	}
+		  if (recvfrom(sockudprecv,(char*)recvdata, RECV_BUFFER_SIZE, 0,
+	         (struct sockaddr *)&remote_addr, &remote_addr_size) > 0) {
+			
+				printf("Getting Data from %s\n", inet_ntoa(remote_addr.sin_addr) );
+			    printf("Data : %s\n", recvdata);
+	   	  }
 
-		}
+	    }
 	} // end if initialized
 }
 
 long CommunicatorXP::sendData(unsigned char* data,int length) {
 
 	// Those 2 thingies are here in order 2 change port/destination on the fly!
+	if (port == NULL) {
+		printf("[-] Error! No Destination Port specified! break...\n");
+		return -1;
+	}
 	this->server.sin_port=htons(this->port);
   	this->server.sin_addr.s_addr=inet_addr(this->destination);
 	

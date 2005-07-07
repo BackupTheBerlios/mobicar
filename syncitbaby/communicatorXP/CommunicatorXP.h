@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #endif
 
-#define RECV_BUFFER_SIZE 1024 // 1kb enough?
+#define RECV_BUFFER_SIZE 204800 // 200kb enough?
 
 
 class CommunicatorXP {
@@ -43,9 +43,6 @@ private:
 	bool initializedReceiver;
 	bool initializedSender;
 
-	unsigned char* buf2recvdata(char buf[]);
-
-
 	long rc;	// bytes sent
 	int sock;	// socket
     struct sockaddr_in server; /* server address info better its called client,,, but still on the "server" */
@@ -64,7 +61,6 @@ private:
 // ######### Variables for the udpserver on the proxyside
 	int sockudprecv;                 
     struct sockaddr_in udpserver;      
-
 	unsigned char* recvdata;
 	unsigned int recvlength;
 
