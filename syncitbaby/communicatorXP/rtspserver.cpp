@@ -1,6 +1,6 @@
 // rtspserver.cpp : Definiert den Einstiegspunkt für die Konsolenanwendung.
 //
-#include "stdafx.h"
+//#include "stdafx.h"
 #include "rtspserver.h"
 #include <stdio.h>
 
@@ -69,6 +69,7 @@ char* RtspServer::strDupSize(char const* str) {
 
 char* RtspServer::generateSDPDescription() {
   //  ourIPAddress.s_addr = ourSourceAddressForMulticast(envir());
+ 
   char* const ourIPAddressStr = localIP;//strDup(inet_ntoa(tcpserver.sin_addr));
   unsigned ourIPAddressStrSize = strlen(ourIPAddressStr);
 
@@ -82,31 +83,32 @@ char* RtspServer::generateSDPDescription() {
   // (We do this first, because the call to "subsession->sdpLines()"
   // causes correct subsession 'duration()'s to be calculated later.)
   unsigned sdpLength = 0;
-
   rangeLine = strDup("a=range:npt=0-\r\n");
-
-  char streams[1000];
+  
+  char streams[1024];
+  
   switch(streamcount) { // DYNAMISCH !!!!!!!!!!!!!!!!!!!1
 	  case 'a':
-			    sprintf(streams, "m=audio %s RTP/AVP 14\r\n"
+			    sprintf(streams, "m=audio %i RTP/AVP 14\r\n"
 				         "c=IN IP4 %s/7\r\n"
 						 "a=control:track1\r\n",rtpAudioPort,localIP);
 		       break;
 	  case 'v':
 			    sprintf(streams,"m=video %s RTP/AVP 32\r\n"
-						 "c=IN IP4 %s/7\r\n"
+						 "c=IN IP4 %i/7\r\n"
 						 "a=control:track2\r\n",rtpVideoPort,localIP);
 	  		   break;
 	  case 'b':
-			   sprintf(streams,"m=audio %s RTP/AVP 14\r\n"
-				         "c=IN IP4 %s/7\r\n"
-						 "a=control:track1\r\n"
-						 "m=video %s RTP/AVP 32\r\n"
-						 "c=IN IP4 %s/7\r\n"
-						 "a=control:track2\r\n",rtpAudioPort,localIP,rtpVideoPort,localIP);
+
+			   sprintf(streams,"m=audio %i RTP/AVP 14\r\n"
+				           "c=IN IP4 %s/7\r\n"
+				           "a=control:track1\r\n"
+					   "m=video %i RTP/AVP 32\r\n"
+					   "c=IN IP4 %s/7\r\n"
+					   "a=control:track2\r\n",
+					   rtpAudioPort,localIP,rtpVideoPort,localIP);
 	  		   break;
   }
-
   // Generate the SDP prefix (session-level lines):
    sprintf((char*)tmpstring,"v=0\r\n"
                 "o=- %ld%06ld %d IN IP4 %s\r\n"
@@ -328,7 +330,7 @@ void RtspServer::handle_INCOMING_request(unsigned char* daten,int totalBytes) {
 	  if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
 		   
 	} else {
-     handle_notSupported_cmd(cseq);
+          handle_notSupported_cmd(cseq);
 	 size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
 	 if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
     }
@@ -346,7 +348,6 @@ void RtspServer::handle_DESCRIBE_cmd(char const* cseq, char const* urlSuffix,cha
   // Also, generate our RTSP URL, for the "Content-Base:" header
   // (which is necessary to ensure that the correct URL gets used in
   // subsequent "SETUP" requests).
-
 	unsigned sdpDescriptionSize = strlen(generateSDPDescription());
 
     sprintf((char*)fResponseBuffer,
@@ -361,7 +362,7 @@ void RtspServer::handle_DESCRIBE_cmd(char const* cseq, char const* urlSuffix,cha
 	     generate_RTSPURL(),
 	     sdpDescriptionSize,
 	     generateSDPDescription());
-//printf("DESCRIBE: \n%s\n",fResponseBuffer);
+printf("DESCRIBE: \n%s\n",fResponseBuffer);
 
 }
 
@@ -388,7 +389,7 @@ void RtspServer::parseTransportHeader(char const* buf,
   // First, find "Transport:"
   while (1) {
     if (*buf == '\0') return; // not found
-    if (_strnicmp(buf, "Transport: ", 11) == 0) break;
+    if (strncmp(buf, "Transport: ", 11) == 0) break;
     ++buf;
   }
 
@@ -404,7 +405,7 @@ void RtspServer::parseTransportHeader(char const* buf,
 	       strcmp(field, "MP2T/H2221/UDP") == 0) {
       streamingMode = RAW_UDP;
       streamingModeString = strDup(field);
-    } else if (_strnicmp(field, "destination=", 12) == 0) {
+    } else if (strncmp(field, "destination=", 12) == 0) {
       delete[] destinationAddressStr;
       destinationAddressStr = strDup(field+12);
     } else if (sscanf(field, "ttl%u", &ttl) == 1) {
@@ -459,7 +460,7 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
 
   switch (streamingMode) {
     case RTP_UDP: {
-      _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+      snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	       "RTSP/1.0 200 OK\r\n"
 	       "CSeq: %s\r\n"
 	       "%s"
@@ -472,14 +473,14 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
       break;
     }
     case RAW_UDP: {
-      _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+      snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	       "RTSP/1.0 200 OK\r\n"
 	       "CSeq: %s\r\n"
 	       "%s"
 	       "Transport: %s;unicast;destination=%s;client_port=%d;server_port=%d\r\n"
 	       "Session: %d\r\n\r\n",
 	       cseq,
-	       dateHeader(), !?
+	       dateHeader(),
 	       streamingModeString, remoteIP, ntohs(rtpPort), ntohs(rtcpPort),
 	       "1234567890"); // something gotta be fixxed here
       delete[] streamingModeString;
@@ -487,7 +488,7 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
     }
   }
 
-  //printf("SETUP-String: \n%s\n",fResponseBuffer);		  
+  printf("SETUP-String: \n%s\n",fResponseBuffer);		  
 }
 
 void RtspServer::handle_withinSession_cmd(char const* cmdName,
@@ -526,7 +527,7 @@ bool RtspServer::parseRangeHeader(char const* buf, float& rangeStart, float& ran
   // First, find "Range:"
   while (1) {
     if (*buf == '\0') return 0; // not found
-    if (_strnicmp(buf, "Range: ", 7) == 0) break;
+    if (strncmp(buf, "Range: ", 7) == 0) break;
     ++buf;
   }
 
@@ -553,7 +554,7 @@ bool RtspServer::parseScaleHeader(char const* buf, float& scale) {
   // First, find "Scale:"
   while (1) {
     if (*buf == '\0') return 0; // not found
-    if (_strnicmp(buf, "Scale: ", 7) == 0) break;
+    if (strncmp(buf, "Scale: ", 7) == 0) break;
     ++buf;
   }
 
@@ -624,7 +625,7 @@ void RtspServer::handle_PLAY_cmd(char const* cseq,
   rtpInfo[0] = '\0';
 
   // Fill in the response:
-  _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+  snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\n"
 	   "CSeq: %s\r\n"
 	   "%s"
@@ -646,14 +647,14 @@ void RtspServer::handle_PLAY_cmd(char const* cseq,
 
 void RtspServer::handle_PAUSE_cmd(char const* cseq) {
   /* falls mal vom file - file anhalten,,, */
-	_snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+	snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%sSession: %d\r\n\r\n",
 	   cseq, dateHeader(), "1234567890"); // sessionid... fixx
 }
 
 
 void RtspServer::handle_TEARDOWN_cmd(char const* cseq) {
-  _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+  snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%s\r\n",
 	   cseq, dateHeader());
   //printf("teardown : \n%s\n"),fResponseBuffer);
@@ -663,14 +664,14 @@ void RtspServer::handle_TEARDOWN_cmd(char const* cseq) {
 void RtspServer::handle_GET_PARAMETER_cmd(char const* cseq,char const* /*fullRequestStr*/) {
   // We implement "GET_PARAMETER" just as a 'keep alive',
   // and send back an empty response:
-  _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+  snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%sSession: %d\r\n\r\n",
 	   cseq, dateHeader(), "1234567890");
 }
 
 void RtspServer::handle_bad_cmd(char const* /*cseq*/) {
   // Don't do anything with "cseq", because it might be nonsense
-  _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+  snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 400 Bad Request\r\n%sAllow: %s\r\n\r\n",
 	   dateHeader(), allowedCommandNames);
   printf("Bad COMMAND !!! sending answer: \n%s\n",fResponseBuffer);
@@ -678,7 +679,7 @@ void RtspServer::handle_bad_cmd(char const* /*cseq*/) {
 }
 
 void RtspServer::handle_notSupported_cmd(char const* cseq) {
-  _snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
+  snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 405 Method Not Allowed\r\nCSeq: %s\r\n%sAllow: %s\r\n\r\n",
 	   cseq, dateHeader(), allowedCommandNames);
  }
@@ -714,7 +715,7 @@ bool RtspServer::initSocket() {
 	
 	tcpserver.sin_family=AF_INET;
 	tcpserver.sin_port = htons(rtspPort); 
-	tcpserver.sin_addr.S_un.S_addr=inet_addr(localIP); //INADDR_ANY;
+	tcpserver.sin_addr.s_addr=inet_addr(localIP); //INADDR_ANY;
 
     if (bind(sock, (struct sockaddr *)&tcpserver, sizeof(tcpserver))==-1) {
       fprintf(stderr, "[-] Error: bind\n");
@@ -732,7 +733,7 @@ void RtspServer::tcplisten() {
     size=sizeof(remote_addr);
 	printf("Listening on: %s \n",inet_ntoa(tcpserver.sin_addr));
 	
-	remote_s = accept(sock, (struct sockaddr *)&remote_addr, &size); // accept incomming connections...
+	remote_s = accept(sock, (struct sockaddr *)&remote_addr, (socklen_t*)&size); // accept incomming connections...
 
 	remoteIP = inet_ntoa(remote_addr.sin_addr);
 	printf("\nincoming connection from %s\n",remoteIP);

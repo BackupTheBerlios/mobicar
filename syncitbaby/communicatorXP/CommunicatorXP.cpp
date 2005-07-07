@@ -1,4 +1,4 @@
-#include "stdafx.h"
+//#include "stdafx.h"
 #include "CommunicatorXP.h"
 
 CommunicatorXP::CommunicatorXP() {
@@ -83,24 +83,17 @@ void CommunicatorXP::receiveData() {
 
     struct sockaddr_in remote_addr;      /* 2 Adressen      */
     int remote_addr_size = sizeof(remote_addr);   /* fuer recvfrom() */
-	
-	recvdata = (unsigned char*) malloc(RECV_BUFFER_SIZE); //fixx into sizeofbuffer?
-
-	if(initializedReceiver) {
-
-		printf("[*] Waiting for incoming data... \n");
-		
-		while(1) {
-
-		  if (recvfrom(sockudprecv,(char*)recvdata, RECV_BUFFER_SIZE, 0,
-	         (struct sockaddr *)&remote_addr, &remote_addr_size) > 0) {
-			
-				printf("Getting Data from %s\n", inet_ntoa(remote_addr.sin_addr) );
-			    printf("Data : %s\n", recvdata);
-	   	  }
-
-	    }
-	} // end if initialized
+    recvdata = (unsigned char*) malloc(RECV_BUFFER_SIZE); //fixx into sizeofbuffer?
+    if(initializedReceiver) {
+  
+  	if (recvfrom(sockudprecv, recvdata, RECV_BUFFER_SIZE, 0,
+	   (struct sockaddr *)&remote_addr, (socklen_t*)&remote_addr_size) > 0) {
+//      printf("Getting Data from %s\n",
+//	     inet_ntoa(remote_addr.sin_addr.s_addr) );
+	    printf("Data : %s\n", recvdata);
+    	}
+    } // end if initialized
+    
 }
 
 long CommunicatorXP::sendData(unsigned char* data,int length) {
@@ -114,7 +107,7 @@ long CommunicatorXP::sendData(unsigned char* data,int length) {
   	this->server.sin_addr.s_addr=inet_addr(this->destination);
 	
 	if (data != NULL) {
-		rc = sendto(sock,(char*) data,length,0,(SOCKADDR*)&server,sizeof(server));
+		rc = sendto(sock,(char*) data,length,0,(struct sockaddr*)&server,sizeof(server));
 	}
 	return rc; // returns bytes sent (-1 if error)
 }

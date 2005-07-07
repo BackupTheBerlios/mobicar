@@ -62,7 +62,7 @@ private:
 
 // ######### Variables for the udpserver on the proxyside
 	int sockudprecv;                 
-    struct sockaddr_in udpserver;      
+   	 struct sockaddr_in udpserver;      
 	unsigned char* recvdata;
 	unsigned int recvlength;
 
