@@ -1,5 +1,7 @@
 #include "CommunicatorXP.h"
+#include <iostream>
 #include "BufferClass.h"
+
 
 CommunicatorXP::CommunicatorXP() {
 
@@ -39,7 +41,8 @@ CommunicatorXP::~CommunicatorXP() {
 	#if defined(__WIN32__) || defined(_WIN32)
 	WSACleanup();
 	#endif
-	// close(sock); well - usually cleanup thingies,, but doesnt work well :( missing include
+	close(sock);
+        close(sockudprecv);
 }
 
 void CommunicatorXP::setPort(unsigned short rport) { // port to send data to
@@ -83,7 +86,8 @@ bool CommunicatorXP::initUDPSender() {
 	   initializedSender =0;
 	   #else
 	   printf("[-] Error ! Couldn't create socket! (code: %d)\n",sock);
-	   initializedSender =0;
+	   close(sock);
+           initializedSender =0;
 	   #endif
 	
 	} else {
@@ -106,6 +110,7 @@ bool CommunicatorXP::initUDPReceiver() {
     if (bind(sockudprecv, (struct sockaddr *)&udpserver, sizeof(udpserver)) < 0) {
         fprintf(stderr, "Error: bind()\n");
 	initializedReceiver = 0;
+        close(sockudprecv);
    }    
 
     initializedReceiver = 1;
