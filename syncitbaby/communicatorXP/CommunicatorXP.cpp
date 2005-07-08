@@ -128,10 +128,10 @@ void CommunicatorXP::receiveData() {
     if(initializedReceiver) {
   
 		#if defined(__WIN32__) || defined(_WIN32)
-		recvsize = recvsize = recvfrom(sockudprecv, (char*)recvdata, RECV_BUFFER_SIZE, 0,
+		recvsize = recvfrom(sockudprecv, (char*)recvdata, RECV_BUFFER_SIZE, 0,
                                   (struct sockaddr *)&remote_addr, &remote_addr_size);
 		#else
-		recvsize = recvsize = recvfrom(sockudprecv, recvdata, RECV_BUFFER_SIZE, 0,
+		recvsize = recvfrom(sockudprecv, recvdata, RECV_BUFFER_SIZE, 0,
 	                   (struct sockaddr *)&remote_addr, (socklen_t*)&remote_addr_size);
         #endif
 
