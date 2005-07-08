@@ -1,17 +1,54 @@
-//#include "stdafx.h"
 #include "CommunicatorXP.h"
 
 CommunicatorXP::CommunicatorXP() {
 } // end Constructor
 
 CommunicatorXP::~CommunicatorXP() {
-	//close(sock);
+	#if defined(__WIN32__) || defined(_WIN32)
+	WSACleanup();
+	#endif
+	// close(sock); well - usually cleanup thingies,, but doesnt work well :( missing include
+}
+
+void CommunicatorXP::setPort(unsigned short rport) { // port to send data to
+	this->port = rport;
+}
+
+unsigned short CommunicatorXP::getPort() {
+	return this->port;
+}
+
+void CommunicatorXP::setLocalPort(unsigned short rport) {
+	this->localport = rport;
+}
+unsigned short CommunicatorXP::getLocalPort() {
+	return this->localport;
+}
+
+void CommunicatorXP::setDestination(char* host) {
+	this->destination = host;
+}
+
+char* CommunicatorXP::getDestination() {
+	return this->destination;
+}
+
+unsigned short CommunicatorXP::getRTPSequenceNumber(unsigned char* buf){ // parse the current rtp-sequence number
+	unsigned short sequencenumber=0;
+	// bytes 3&4 represent the sequencenumber
+	sequencenumber = buf[2];
+	sequencenumber = sequencenumber<<8;
+	sequencenumber +=buf[3];
+	
+	return sequencenumber;
 }
 
 bool CommunicatorXP::initUDPSender() {
 		// falls windows erstmal den winsock initialisieren
-	#if defined(__WIN32__) || defined(_WIN32)
-	this->rc = WSAStartup(MAKEWORD(2,0),&wsa);
+	long rc;	// bytes sent
+
+    #if defined(__WIN32__) || defined(_WIN32)
+	rc = WSAStartup(MAKEWORD(2,0),&wsa);
 	
 	if(rc!=0){
 		printf("[-] Error starting Winsock ! (code: %d)\n",rc);
@@ -49,8 +86,10 @@ bool CommunicatorXP::initUDPSender() {
 
 bool CommunicatorXP::initUDPReceiver() {
   
+	long rc;	// bytes sent
+
 	#if defined(__WIN32__) || defined(_WIN32)
-	this->rc = WSAStartup(MAKEWORD(2,0),&wsa);
+	rc = WSAStartup(MAKEWORD(2,0),&wsa);
 	
 	if(rc!=0){
 		printf("[-] Error starting Winsock ! (code: %d)\n",rc);
@@ -83,20 +122,31 @@ void CommunicatorXP::receiveData() {
 
     struct sockaddr_in remote_addr;      /* 2 Adressen      */
     int remote_addr_size = sizeof(remote_addr);   /* fuer recvfrom() */
-    recvdata = (unsigned char*) malloc(RECV_BUFFER_SIZE); //fixx into sizeofbuffer?
+    long recvsize=0;
+	
+	recvdata = (unsigned char*) malloc(RECV_BUFFER_SIZE); //fixx into sizeofbuffer?
     if(initializedReceiver) {
   
-  	if (recvfrom(sockudprecv, recvdata, RECV_BUFFER_SIZE, 0,
-	   (struct sockaddr *)&remote_addr, (socklen_t*)&remote_addr_size) > 0) {
-//      printf("Getting Data from %s\n",
-//	     inet_ntoa(remote_addr.sin_addr.s_addr) );
-	    printf("Data : %s\n", recvdata);
-    	}
-    } // end if initialized
+		#if defined(__WIN32__) || defined(_WIN32)
+		recvsize = recvsize = recvfrom(sockudprecv, (char*)recvdata, RECV_BUFFER_SIZE, 0,
+                                  (struct sockaddr *)&remote_addr, &remote_addr_size);
+		#else
+		recvsize = recvsize = recvfrom(sockudprecv, recvdata, RECV_BUFFER_SIZE, 0,
+	                   (struct sockaddr *)&remote_addr, (socklen_t*)&remote_addr_size);
+        #endif
+
+		if (recvsize > 0) {
+            //      printf("Getting Data from %s\n",
+            //	     inet_ntoa(remote_addr.sin_addr.s_addr) );
+	        printf("Data : %s\n", recvdata); // data has to be worked with
+		}
+	} // end if initialized
     
 }
 
 long CommunicatorXP::sendData(unsigned char* data,int length) {
+
+	long rc;	// bytes sent
 
 	// Those 2 thingies are here in order 2 change port/destination on the fly!
 	if (port == NULL) {
@@ -113,36 +163,8 @@ long CommunicatorXP::sendData(unsigned char* data,int length) {
 }
 
 
-void CommunicatorXP::setPort(unsigned short rport) {
-	this->port = rport;
+/*
+int _tmain(int argc, _TCHAR* argv[])
+{
 }
-
-unsigned short CommunicatorXP::getPort() {
-	return this->port;
-}
-
-void CommunicatorXP::setLocalPort(unsigned short rport) {
-	this->localport = rport;
-}
-unsigned short CommunicatorXP::getLocalPort() {
-	return this->localport;
-}
-
-void CommunicatorXP::setDestination(char* host) {
-	this->destination = host;
-}
-
-char* CommunicatorXP::getDestination() {
-	return this->destination;
-}
-
-unsigned short CommunicatorXP::getRTPSequenceNumber(unsigned char* buf){
-	unsigned short sequencenumber=0;
-	// bytes 3&4 represent the sequencenumber
-	sequencenumber = buf[2];
-	sequencenumber = sequencenumber<<8;
-	sequencenumber +=buf[3];
-	
-	return sequencenumber;
-}
-
+*/
