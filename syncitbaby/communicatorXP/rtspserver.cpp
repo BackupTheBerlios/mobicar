@@ -1,31 +1,42 @@
-// rtspserver.cpp : Definiert den Einstiegspunkt für die Konsolenanwendung.
-//
-//#include "stdafx.h"
+
+#if defined(__WIN32__) || defined(_WIN32)
+#include "stdafx.h"
+#endif 
+
 #include "rtspserver.h"
 #include <stdio.h>
 
-RtspServer::RtspServer() {
-	streamservername = "Sky streaming media server ver 0.1alpha";			 // Server-Name & Version :)
-	sessionDescription = "TEST-STREAM by SKYRAVER::COMMUNICATION";
-	filename="test.mpg";
-	streamcount='b';
-	allowedCommandNames = "OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE"; // Allowed commands on this Server
-	setLocalIP("192.168.0.2");
-	setRtspPort(554);			// if not set uses 554
-	setRTPAudioPort(6010);		// if not set uses 5010 rtcp always +1
-	setRTPVideoPort(6020);		// if not set uses 5020 rtcp always +1
-	setStreamOrigin("test.mpg");
-	setSessionDescription("Session streamed by Video@Home::Communication-Team");
-	initSocket();
+#if defined(__WIN32__) || defined(_WIN32)
+#define snprintf _snprintf
+#endif
 
+RtspServer::RtspServer() {
+	streamservername = "Sky RTSP Media Server ver 1.0b";	 // Server-Name & Version :)
+	streamcount='b';										 // fiXX (a = audio; v=video; b = both
+	setLocalIP("192.168.0.2");								 // fiXX to autoget ip
+	setRtspPort(554);			  // if not set uses 554
+	setRTPAudioPort(5010);		  // if not set uses 5010 rtcp always +1
+	setRTPVideoPort(5020);		  // if not set uses 5020 rtcp always +1
+	setSessionName("testStream"); 
+	setStreamOrigin("DVBT-Device");
+	setSessionDescription("Session streamed by SkyRaVeR 4 Video@Home::Communication-Team");
+
+	initSocket();
 }
 
 RtspServer::~RtspServer() {
-	// close(sock); well - usually cleanup thingies,, but doesnt work well :(
+	#if defined(__WIN32__) || defined(_WIN32)
+	WSACleanup();
+	#endif
+	// close(sock); well - usually cleanup thingies,, but doesnt work well :( missing inclue
 }
 
 void RtspServer::setRtspPort(unsigned short p) {
 	rtspPort = p;
+}
+
+void RtspServer::setSessionName(char* sessionname) {
+	sessionName = sessionname;
 }
 
 void RtspServer::setStreamOrigin(char* file) {
@@ -70,7 +81,7 @@ char* RtspServer::strDupSize(char const* str) {
 char* RtspServer::generateSDPDescription() {
   //  ourIPAddress.s_addr = ourSourceAddressForMulticast(envir());
  
-  char* const ourIPAddressStr = localIP;//strDup(inet_ntoa(tcpserver.sin_addr));
+  char* const ourIPAddressStr = localIP;
   unsigned ourIPAddressStrSize = strlen(ourIPAddressStr);
 
   char* sourceFilterLine;
@@ -142,8 +153,7 @@ char* RtspServer::generateSDPDescription() {
 
 char* RtspServer::generate_RTSPURL() {
   
-	char const* sessionName = "testitMate";
-	unsigned sessionNameLength = strlen(sessionName);
+  unsigned sessionNameLength = strlen(sessionName);
 
   char* urlBuffer = new char[100 + sessionNameLength];
   char* resultURL;
@@ -299,48 +309,60 @@ void RtspServer::handle_INCOMING_request(unsigned char* daten,int totalBytes) {
 			  urlPreSuffix, sizeof urlPreSuffix,
 			  urlSuffix, sizeof urlSuffix,
 			  cseq, sizeof cseq)) {
-   printf("Bad Command received (%s) : \n%s\n",cmdName,daten);
    handle_bad_cmd(cseq);
    size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
+   #if defined(DEBUG)
    if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-
+   #endif
 	} else {
     if (strcmp(cmdName, "OPTIONS") == 0) {
       handle_OPTIONS_cmd(cseq);
 	size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
-	if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-
+   #if defined(DEBUG)
+   if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
+   #endif
 	} else if (strcmp(cmdName, "DESCRIBE") == 0) {
 		handle_DESCRIBE_cmd(cseq, urlSuffix, (char const*)daten);
 		size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
+	    #if defined(DEBUG)
 		if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-    
+		#endif
 	} else if (strcmp(cmdName, "SETUP") == 0) {
       handle_SETUP_cmd(cseq, urlPreSuffix, urlSuffix, (char const*)fBuffer);
    	  size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
+	  #if defined(DEBUG)
 	  if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-
+      #endif
     } else if (strcmp(cmdName, "TEARDOWN") == 0
 	       || strcmp(cmdName, "PLAY") == 0
 	       || strcmp(cmdName, "PAUSE") == 0
 	       || strcmp(cmdName, "GET_PARAMETER") == 0) {
       
 	   handle_withinSession_cmd(cmdName, urlPreSuffix, urlSuffix, cseq,(char const*)fBuffer);
-   	  size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
-	  if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-		   
+	   size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
+  	   #if defined(DEBUG)
+	   if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
+	   #endif
+	   	   
 	} else {
           handle_notSupported_cmd(cseq);
-	 size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
-	 if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
-    }
+		  size = send(remote_s,(char*)fResponseBuffer,strlen((char*)fResponseBuffer),0);
+  	   #if defined(DEBUG)
+	   if (size >0) printf("Sent %d bytes \n",size); else printf("ERROR SENDING...\n");
+	   #endif
+	}
   }
 }
 
 void RtspServer::handle_OPTIONS_cmd(char const* cseq) {
   sprintf((char*)fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%sPublic: %s\r\n\r\n",
-	   cseq, dateHeader(), allowedCommandNames);
+	   cseq, dateHeader(), ALLOWEDCOMMANDS);
+
+#if defined(DEBUG)
+  printf("Sending OPTIONS:\n%s\n",fResponseBuffer);
+#endif
+
 }
 
 void RtspServer::handle_DESCRIBE_cmd(char const* cseq, char const* urlSuffix,char const* fullRequestStr) {
@@ -362,7 +384,10 @@ void RtspServer::handle_DESCRIBE_cmd(char const* cseq, char const* urlSuffix,cha
 	     generate_RTSPURL(),
 	     sdpDescriptionSize,
 	     generateSDPDescription());
-printf("DESCRIBE: \n%s\n",fResponseBuffer);
+
+#if defined(DEBUG)
+	printf("Sending DESCRIBE: \n%s\n",fResponseBuffer);
+#endif
 
 }
 
@@ -488,7 +513,7 @@ void RtspServer::handle_SETUP_cmd(char const* cseq,
     }
   }
 
-  printf("SETUP-String: \n%s\n",fResponseBuffer);		  
+//  printf("SETUP-String: \n%s\n",fResponseBuffer);		  
 }
 
 void RtspServer::handle_withinSession_cmd(char const* cmdName,
@@ -642,7 +667,10 @@ void RtspServer::handle_PLAY_cmd(char const* cseq,
   delete[] rtpInfo; delete[] rangeHeader;
   delete[] scaleHeader;
 
-  printf("Play : \n%s\n",fResponseBuffer);
+#if defined(DEBUG)
+  printf("Sending PLAY: \n%s\n",fResponseBuffer);
+#endif
+
 }
 
 void RtspServer::handle_PAUSE_cmd(char const* cseq) {
@@ -650,6 +678,11 @@ void RtspServer::handle_PAUSE_cmd(char const* cseq) {
 	snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%sSession: %d\r\n\r\n",
 	   cseq, dateHeader(), "1234567890"); // sessionid... fixx
+
+#if defined(DEBUG)
+  printf("Sending PAUSE: \n%s\n",fResponseBuffer);
+#endif
+
 }
 
 
@@ -657,7 +690,12 @@ void RtspServer::handle_TEARDOWN_cmd(char const* cseq) {
   snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%s\r\n",
 	   cseq, dateHeader());
-  //printf("teardown : \n%s\n"),fResponseBuffer);
+#if defined(DEBUG)
+  printf("Sending TEARDOWN: \n%s\n",fResponseBuffer);
+#endif
+  printf("[!] Teardown received from client !\n[!] cleaning up and killing myself - thx for using skyRTSP ! :)\nfiXX me pls\n");
+  exit(1);
+  // fiXXX - just gotta close current connection - not whole server ;)
 }
 
 
@@ -667,29 +705,41 @@ void RtspServer::handle_GET_PARAMETER_cmd(char const* cseq,char const* /*fullReq
   snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 200 OK\r\nCSeq: %s\r\n%sSession: %d\r\n\r\n",
 	   cseq, dateHeader(), "1234567890");
+
+#if defined(DEBUG)
+  printf("Sending GET_PARAMETER: \n%s\n",fResponseBuffer);
+#endif
+
 }
 
 void RtspServer::handle_bad_cmd(char const* /*cseq*/) {
   // Don't do anything with "cseq", because it might be nonsense
   snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 400 Bad Request\r\n%sAllow: %s\r\n\r\n",
-	   dateHeader(), allowedCommandNames);
-  printf("Bad COMMAND !!! sending answer: \n%s\n",fResponseBuffer);
+	   dateHeader(), ALLOWEDCOMMANDS);
+
+#if defined(DEBUG)
+  printf("Sending BAD_CMD: \n%s\n",fResponseBuffer);
+#endif
+
+  printf("Bad COMMAND !!! ...received (killing myself dont wanna be xploited :D\n");
   exit(1);
 }
 
 void RtspServer::handle_notSupported_cmd(char const* cseq) {
   snprintf((char*)fResponseBuffer, sizeof fResponseBuffer,
 	   "RTSP/1.0 405 Method Not Allowed\r\nCSeq: %s\r\n%sAllow: %s\r\n\r\n",
-	   cseq, dateHeader(), allowedCommandNames);
- }
+	   cseq, dateHeader(), ALLOWEDCOMMANDS);
+#if defined(DEBUG)
+  printf("Sending NOT_SUPPORTED: \n%s\n",fResponseBuffer);
+#endif
+}
 
 bool RtspServer::initSocket() {
 // falls windows erstmal den winsock initialisieren
 	long rc;
 	#if defined(__WIN32__) || defined(_WIN32)
 	rc = WSAStartup(MAKEWORD(2,0),&wsa);
-	
 	if(rc!=0){
 		printf("[-] Error starting Winsock ! (code: %d)\n",rc);
 	} else {
@@ -699,7 +749,6 @@ bool RtspServer::initSocket() {
 
 	// socket grabben
 	sock = socket(AF_INET, SOCK_STREAM, 0);
-
   
 	if(sock == -1) {
 		#if defined(__WIN32__) || defined(_WIN32)
@@ -709,7 +758,7 @@ bool RtspServer::initSocket() {
 		#endif
 	
 	} else {
-		printf("[+]TCP Socket erstellt!\n");
+		printf("[+] TCP Socket erstellt!\n");
 	}
 	memset((char *) &tcpserver, 0, sizeof(tcpserver)); // speicher für uns reservieren :)
 	
@@ -731,13 +780,16 @@ void RtspServer::tcplisten() {
     }
 
     size=sizeof(remote_addr);
-	printf("Listening on: %s \n",inet_ntoa(tcpserver.sin_addr));
-	
+	printf("[*] Listening on: %s \n",inet_ntoa(tcpserver.sin_addr));
+
+#if defined(__WIN32__) || defined(_WIN32)
+	remote_s = accept(sock, (struct sockaddr *)&remote_addr,&size); // accept incomming connections...
+#else
 	remote_s = accept(sock, (struct sockaddr *)&remote_addr, (socklen_t*)&size); // accept incomming connections...
+#endif 
 
 	remoteIP = inet_ntoa(remote_addr.sin_addr);
-	printf("\nincoming connection from %s\n",remoteIP);
-	
+	printf("[*] Incoming connection from %s\n",remoteIP);
 
 	while (1) {  
 	
@@ -746,11 +798,15 @@ void RtspServer::tcplisten() {
 		if (size==-1) {
 			fprintf(stderr, "error while receiving\n");
 		} else {
-			//printf("Received %d bytes\nIncomming MSG: \n%s\n", size,buffer);
+
+			#if defined(DEBUGRECEIVE)
+			printf("Received %d bytes\nIncoming MSG: \n%s\n", size,buffer);
+			#endif
 			handle_INCOMING_request((unsigned char*)buffer,size);
 		}
 	}
 }
+// just here because i compile with studio.net and i dont wanna have extra file 4 testing
 /*
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -758,3 +814,4 @@ int _tmain(int argc, _TCHAR* argv[])
 	test->tcplisten();
 }
 */
+
